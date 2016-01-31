@@ -74,6 +74,11 @@ public class HUD : MonoBehaviour
     {
         restartText.text = "Restart in " + value.ToString("f0") + " seconds";
     }
+
+	public void UpdateRestartText(string value)
+    {
+        restartText.text = value;
+    }
         
     public void hideTitle()
     {
