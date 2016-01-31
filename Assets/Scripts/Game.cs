@@ -17,7 +17,8 @@ public class Game : MonoBehaviour
 	public static float currentTime = 0;
 	public static int playerCount = 0;
 	public static int totalTurns = 0;
-	public static float nextRoundCountdown = 0;
+    public static float nextRoundCountdown = 0;
+    public static int totalTurnPerPlayer = 0;
 
 	public static GameState gameState;
 }

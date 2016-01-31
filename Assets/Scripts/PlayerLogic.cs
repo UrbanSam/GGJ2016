@@ -28,7 +28,7 @@ public class PlayerLogic : NetworkBehaviour {
 	void Start ()
 	{
 		Game.playerCount++;
-
+        HUD.instance.hideTitle();
 		Random.seed = 12;
 
 		if (isServer)
@@ -74,43 +74,62 @@ public class PlayerLogic : NetworkBehaviour {
 
 			break;
 
-		case GameState.PlayingRound:
+            case GameState.PlayingRound:
 
-			Debug.Log("PlayingRound waiting for :" + Game.currentTurn);
+            Debug.Log("PlayingRound waiting for :" + Game.currentTurn);
+            if (playerNumbers.Count > 0)
+            {
+                if (Input.GetButtonDown("Fire1"))
+                {
+                    string str = "";
+                    for (int i = 0; i < playerNumbers.Count; i++)
+                        str += playerNumbers[i] + ", ";
+                    Debug.Log(str);
 
-			if (Input.GetButtonDown("Fire1"))
-			{
-				string str = "";
-				for (int i = 0; i < playerNumbers.Count; i++)
-					str += playerNumbers[i] + ", ";
-				Debug.Log(str);
+                    Debug.Log("Send number : " + playerNumbers[0]);
 
-				Debug.Log("Send number : " + playerNumbers[0]);
+                    if (isServer)
+                        RpcPlayerPress(netId, playerNumbers[0]);
+                    else
+                        CmdPlayerPress(netId, playerNumbers[0]);
+                }
 
-				if (isServer)
-					RpcPlayerPress(netId, playerNumbers[0]);
-				else
-					CmdPlayerPress(netId, playerNumbers[0]);
-			}
-
-			Game.currentTime -= Time.deltaTime;
-			if (Game.currentTime <= 0)
-	        {
-				Game.currentTime = 5f;
-	            if (playerScore <= 0)
-	            {
-	                playerScore = 0;
-	            }
-	            else
-	            {
-	                playerScore -= 5;
-	            }
-	        }
-
+                Game.currentTime -= Time.deltaTime;
+                if (Game.currentTime <= 0)
+                {
+                    Game.currentTime = 5f;
+                    if (playerScore <= 0)
+                    {
+                        playerScore = 0;
+                    }
+                    else
+                    {
+                        playerScore -= 5;
+                    }
+                }
+                HUD.instance.UpdateCurrentNumber(playerNumbers[0]);
+            }
+            else
+            {
+                HUD.instance.UpdateCurrentNumber("none");
+            }
+            HUD.instance.UpdateRound(Game.currentRound);
 			HUD.instance.UpdateTimer(Game.currentTime);
 			HUD.instance.UpdateScore(playerScore);
 
 			break;
+
+            case GameState.GameOver:
+                Game.nextRoundCountdown -= Time.deltaTime;
+                HUD.instance.UpdateRestartText(Game.nextRoundCountdown);
+
+                if (Game.nextRoundCountdown <= 0f)
+                {
+                    HUD.instance.gameoverUI.SetActive(false);
+                    SetGameState(GameState.WaitingForNextRound);
+                }
+
+                break;
 		}
 	}
 
@@ -126,7 +145,7 @@ public class PlayerLogic : NetworkBehaviour {
 
 	    	// This is when the the first player (host) is created,
 	    	// so setup the server variables.
-
+            HUD.instance.gameoverUI.SetActive(false);
 			Game.currentTurn = 0;
 			Game.currentRound = 0;
 	        SetGameState(GameState.WaitingForPlayers);
@@ -167,14 +186,17 @@ public class PlayerLogic : NetworkBehaviour {
 
 			break;
 
-	    case GameState.GameOver:
+        case GameState.GameOver:
 
-			if (waitForNextRound)
-			{
-				waitForNextRound = false;
-				tag = "Player";
-			}
-
+            if (waitForNextRound)
+            {
+                waitForNextRound = false;
+                tag = "Player";
+            }
+            
+            if(isLocalPlayer)
+                GameOver();
+            
 			break;
 
 		default:
@@ -249,6 +271,36 @@ public class PlayerLogic : NetworkBehaviour {
 			playerScore = 0;
 	}
 
+    void GameOver()
+    {
+        HUD.instance.gameoverUI.SetActive(true);
+        Game.nextRoundCountdown = 5f;
+        GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
+        List<int> playerScore = new List<int>();
+        Debug.Log("Player length : " + players.Length);
+        for (int i = 0; i < 5; i++)
+        {
+            if (i > players.Length)
+                break;
+            playerScore.Add(players[i].GetComponent<PlayerLogic>().GetPlayerScore());
+            Debug.Log("Player "+i+" , score :"+players[i].GetComponent<PlayerLogic>().GetPlayerScore());
+
+        }
+
+        //Sort from the highest to lowest
+        playerScore.Sort((int x, int y) => { return y.CompareTo(x); });
+
+        //TODO
+        //Check top 5 player
+        //Update to HUD
+        for (int i = 0; i < 5; i++)
+        {
+            if (i > players.Length)
+                HUD.instance.UpdatePlayerResult(i,false, 0);//Empty
+            else
+                HUD.instance.UpdatePlayerResult(i,isLocalPlayer, playerScore[i]);
+        }
+    }
 
 
 	[Command]
@@ -261,23 +313,26 @@ public class PlayerLogic : NetworkBehaviour {
 	[ClientRpc]
 	void RpcDoRestartRound ()
 	{
-		Debug.Log("RpcDoRestartRound");
+        if (isLocalPlayer)
+        {
+            Game.currentTurn = 0;
+            Game.currentRound++;
+            Game.totalTurnPerPlayer = 0;
+        }
 
-		Game.currentTurn = 0;
-		Game.currentRound++;
-		int totalTurnPerPlayer = 0;
+		Debug.Log("RpcDoRestartRound");
 
 		// Set up total turn for each player count
         if (Game.playerCount < 5)
-            totalTurnPerPlayer = Random.Range(5, 10);
+            Game.totalTurnPerPlayer = Random.Range(5, 10);
 		else if (Game.playerCount < 10)
-			totalTurnPerPlayer = Random.Range(3, 5);
+            Game.totalTurnPerPlayer = Random.Range(3, 5);
 		else if (Game.playerCount >= 10)
-			totalTurnPerPlayer = Random.Range(2, 3);
+            Game.totalTurnPerPlayer = Random.Range(2, 3);
 
 		GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
 
-		Game.totalTurns = players.Length * totalTurnPerPlayer;
+        Game.totalTurns = players.Length * Game.totalTurnPerPlayer;
 
 		// Create numbers for every player
 		//! Assign available id to each player
@@ -294,9 +349,9 @@ public class PlayerLogic : NetworkBehaviour {
 
 			players[i].GetComponent<PlayerLogic>().ClearNumbers();
 
-			for (int j = 0; j < totalTurnPerPlayer; j++)
+			for (int j = 0; j < Game.totalTurnPerPlayer; j++)
 	        {
-				int number = j+(i*totalTurnPerPlayer);
+				int number = j+(i*Game.totalTurnPerPlayer);
 				players[i].GetComponent<PlayerLogic>().AddNumber(availableIdArray[number]);
 
 				Debug.Log("assigned number : " + i + " , " + availableIdArray[number]);
@@ -348,7 +403,13 @@ public class PlayerLogic : NetworkBehaviour {
 			playerNumbers.RemoveAt(0);
 			AddScore(score);
             _playerScript.PlayRightSound();
-		}
+            Debug.Log("Game Over at : " + Game.currentTurn + " , " + Game.totalTurns);
+
+            if (Game.currentTurn >= Game.totalTurns)
+            {
+                SetGameState(GameState.GameOver);
+            }
+        }
 		else
 		{
 			Debug.Log("PlayerPress wrong");
@@ -399,6 +460,11 @@ public class PlayerLogic : NetworkBehaviour {
 			tag = "PlayerInQueue";
 		}
 	}
+
+    public int GetPlayerScore()
+    {
+        return playerScore;
+    }
 
     public bool GetWaitNextRound()
     {
