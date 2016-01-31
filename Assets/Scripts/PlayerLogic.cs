@@ -18,8 +18,12 @@ public class PlayerLogic : NetworkBehaviour {
 
 	List<int> playerNumbers = new List<int>(); // player's numbers, e.g. [1,3,5,6,7]
 	List<int> availableIdArray = new List<int>();
+    PlayerScript _playerScript;
 
-
+    void Awake()
+    {
+        _playerScript = GetComponent<PlayerScript>();
+    }
 
 	void Start ()
 	{
@@ -343,11 +347,13 @@ public class PlayerLogic : NetworkBehaviour {
 			Game.currentTime = 5f;
 			playerNumbers.RemoveAt(0);
 			AddScore(score);
+            _playerScript.PlayRightSound();
 		}
 		else
 		{
 			Debug.Log("PlayerPress wrong");
 			AddScore(-5);
+            _playerScript.PlayWrongSound();
 		}
 	}
 

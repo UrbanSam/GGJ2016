@@ -6,6 +6,10 @@ using System.Collections;
 [RequireComponent (typeof (LineRenderer))]
 public class PlayerScript : NetworkBehaviour {
 
+    private AudioSource _audioSource;
+    public AudioClip rightSoundClip;
+    public AudioClip wrongSoundClip;
+
     private PlayerLogic _playerlogic;
     private LineRenderer _lineRenderer;
     private SpringJoint _springJoint;
@@ -25,8 +29,10 @@ public class PlayerScript : NetworkBehaviour {
     public float maxDelayDuration;
     private bool isChangeColor;
 
+
     void Awake()
     {
+        _audioSource = Camera.main.GetComponent<AudioSource>();
         _playerlogic = GetComponent<PlayerLogic>();
         _transform = GetComponent<Transform>();
         SetPosition();
@@ -122,5 +128,19 @@ public class PlayerScript : NetworkBehaviour {
                 _lineRenderer.material.DOColor(Color.gray, 1f);
             }
         }
+    }
+
+    public void PlayRightSound()
+    {
+        _audioSource.Stop();
+        _audioSource.clip = rightSoundClip;
+        _audioSource.Play();
+    }
+
+    public void PlayWrongSound()
+    {
+        _audioSource.Stop();
+        _audioSource.clip = wrongSoundClip;
+        _audioSource.Play();
     }
 }
