@@ -348,13 +348,13 @@ public class PlayerLogic : NetworkBehaviour {
         Game.totalTurnPerPlayer = 0;
 
 		// Set up total turn for each player count
-		Game.totalTurnPerPlayer = 2; // debug only
-        /*if (Game.playerCount < 5)
+		//Game.totalTurnPerPlayer = 2; // debug only
+        if (Game.playerCount < 5)
             Game.totalTurnPerPlayer = Random.Range(5, 10);
 		else if (Game.playerCount < 10)
             Game.totalTurnPerPlayer = Random.Range(3, 5);
 		else if (Game.playerCount >= 10)
-            Game.totalTurnPerPlayer = Random.Range(2, 3);*/
+            Game.totalTurnPerPlayer = Random.Range(2, 3);
 
 		GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
 
