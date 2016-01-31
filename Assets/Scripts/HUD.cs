@@ -67,7 +67,7 @@ public class HUD : MonoBehaviour
     {
         string name = "Player";
         if (isMe) name = "You";
-        playerListResult[i].text = i.ToString()+" "+name+" : "+score.ToString();
+        playerListResult[i].text = (i+1).ToString()+" "+name+" : "+score.ToString();
     }
 
     public void UpdateRestartText(float value)

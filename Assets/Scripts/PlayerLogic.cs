@@ -280,11 +280,9 @@ public class PlayerLogic : NetworkBehaviour {
         Debug.Log("Player length : " + players.Length);
         for (int i = 0; i < 5; i++)
         {
-            if (i > players.Length)
+            if (i >= players.Length)
                 break;
             playerScore.Add(players[i].GetComponent<PlayerLogic>().GetPlayerScore());
-            Debug.Log("Player "+i+" , score :"+players[i].GetComponent<PlayerLogic>().GetPlayerScore());
-
         }
 
         //Sort from the highest to lowest
@@ -295,10 +293,10 @@ public class PlayerLogic : NetworkBehaviour {
         //Update to HUD
         for (int i = 0; i < 5; i++)
         {
-            if (i > players.Length)
+            if (i >= playerScore.Count)
                 HUD.instance.UpdatePlayerResult(i,false, 0);//Empty
             else
-                HUD.instance.UpdatePlayerResult(i,isLocalPlayer, playerScore[i]);
+                HUD.instance.UpdatePlayerResult(i,false, playerScore[i]);
         }
     }
 
