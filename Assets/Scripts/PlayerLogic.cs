@@ -84,7 +84,7 @@ public class PlayerLogic : NetworkBehaviour {
                     string str = "";
                     for (int i = 0; i < playerNumbers.Count; i++)
                         str += playerNumbers[i] + ", ";
-                    Debug.Log(str);
+                    Debug.Log("UPDATE" + str);
 
                     Debug.Log("Send number : " + playerNumbers[0]);
 
@@ -119,17 +119,30 @@ public class PlayerLogic : NetworkBehaviour {
 
 			break;
 
-            case GameState.GameOver:
-                Game.nextRoundCountdown -= Time.deltaTime;
-                HUD.instance.UpdateRestartText(Game.nextRoundCountdown);
+        case GameState.GameOver:
 
-                if (Game.nextRoundCountdown <= 0f)
-                {
-                    HUD.instance.gameoverUI.SetActive(false);
-                    SetGameState(GameState.WaitingForNextRound);
-                }
+			HUD.instance.UpdateRound(Game.currentRound);
+			HUD.instance.UpdateTimer(Game.currentTime);
+			HUD.instance.UpdateScore(playerScore);
 
-                break;
+        	// Only countdown and restart game if you're the server.
+        	// Otherwise (for clients), wait for server.
+
+        	Game.nextRoundCountdown -= Time.deltaTime;
+        	HUD.instance.UpdateRestartText(Game.nextRoundCountdown);
+
+			if (Game.nextRoundCountdown <= 0f)
+            {
+				Game.nextRoundCountdown = 0;
+				SetGameState(GameState.None);
+
+				if (isServer)
+                	RpcSignalRestartRound();
+
+				HUD.instance.UpdateRestartText("Waiting...");
+            }
+
+            break;
 		}
 	}
 
@@ -174,7 +187,12 @@ public class PlayerLogic : NetworkBehaviour {
 
 		case GameState.RestartRound:
 
-			CmdDoRestartRound();
+			HUD.instance.gameoverUI.SetActive(false);
+
+			if (isServer)
+				RpcDoRestartRound();
+			/*else
+				CmdDoRestartRound();*/
 
 			break;
 
@@ -193,9 +211,11 @@ public class PlayerLogic : NetworkBehaviour {
                 waitForNextRound = false;
                 tag = "Player";
             }
-            
-            if(isLocalPlayer)
-                GameOver();
+
+            // Makes sure the game over screen only shows once
+            // for the localPlayer instead of for every connected player object.
+
+            GameOver();
             
 			break;
 
@@ -231,7 +251,7 @@ public class PlayerLogic : NetworkBehaviour {
 	    }
 	}
 
-	public bool CheckNumber (int numberToCheck)
+	/*public bool CheckNumber (int numberToCheck)
 	{
 		if (Game.currentTurn == numberToCheck)
 		{
@@ -246,7 +266,7 @@ public class PlayerLogic : NetworkBehaviour {
 		}
 		else
 			return false;
-	}
+	}*/
 
 	public void ClearNumbers ()
 	{
@@ -273,8 +293,11 @@ public class PlayerLogic : NetworkBehaviour {
 
     void GameOver()
     {
-        HUD.instance.gameoverUI.SetActive(true);
+    	// Show the game over screen for 5 seconds
+
+		HUD.instance.gameoverUI.SetActive(true);
         Game.nextRoundCountdown = 5f;
+
         GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
         List<int> playerScore = new List<int>();
         Debug.Log("Player length : " + players.Length);
@@ -305,22 +328,27 @@ public class PlayerLogic : NetworkBehaviour {
 	void CmdDoRestartRound ()
 	{
 		Debug.Log("CmdDoRestartRound");
+		// DoRestartRound();
 		RpcDoRestartRound();
 	}
 
 	[ClientRpc]
 	void RpcDoRestartRound ()
 	{
-        if (isLocalPlayer)
-        {
-            Game.currentTurn = 0;
-            Game.currentRound++;
-            Game.totalTurnPerPlayer = 0;
-        }
-
 		Debug.Log("RpcDoRestartRound");
+        DoRestartRound();
+	}
+
+	void DoRestartRound ()
+	{
+		Debug.Log("DoRestartRound");
+
+        Game.currentTurn = 0;
+        Game.currentRound++;
+        Game.totalTurnPerPlayer = 0;
 
 		// Set up total turn for each player count
+		//Game.totalTurnPerPlayer = 2; // debug only
         if (Game.playerCount < 5)
             Game.totalTurnPerPlayer = Random.Range(5, 10);
 		else if (Game.playerCount < 10)
@@ -368,9 +396,10 @@ public class PlayerLogic : NetworkBehaviour {
 	[Command]
 	void CmdPlayerPress (NetworkInstanceId nid, int number)
 	{
-		Debug.Log("=====1 " + isServer + " , " + isClient + " , " + isLocalPlayer);
+		//Debug.Log("=====1 " + isServer + " , " + isClient + " , " + isLocalPlayer);
 		Debug.Log("CmdPlayerPress");
 
+		//PlayerPress(nid, number);
 		RpcPlayerPress(nid, number);
 	}
 
@@ -383,59 +412,95 @@ public class PlayerLogic : NetworkBehaviour {
 
 	void PlayerPress (NetworkInstanceId nid, int number)
 	{
-		Debug.Log("=====2 " + isServer + " , " + isClient + " , " + isLocalPlayer);
+		//Debug.Log("=====2 " + isServer + " , " + isClient + " , " + isLocalPlayer);
 		Debug.Log("PlayerPress : " + nid + " = turn " + Game.currentTurn + " , number " + number);
 
 		string str = "";
 		for (int i = 0; i < playerNumbers.Count; i++)
 			str += playerNumbers[i] + ", ";
-		Debug.Log(str);
+		Debug.Log("PlayerPress curr playerNumbers : " + str);
 
 		if (Game.currentTurn == number)
 		{
 			int score = Mathf.FloorToInt(Game.currentTime);
+			AddScore(score);
 
-			Debug.Log("PlayerPress right");
+			Debug.Log("Game Over at : " + Game.currentTurn + " , " + Game.totalTurns);
+
 			Game.currentTurn++;
 			Game.currentTime = 5f;
 			playerNumbers.RemoveAt(0);
-			AddScore(score);
-            _playerScript.PlayRightSound();
-            Debug.Log("Game Over at : " + Game.currentTurn + " , " + Game.totalTurns);
 
-            if (Game.currentTurn >= Game.totalTurns)
-            {
-                SetGameState(GameState.GameOver);
-            }
+			if (isServer)
+                RpcSignalCorrectAnswer();
+            else
+				CmdSignalCorrectAnswer();
         }
 		else
 		{
-			Debug.Log("PlayerPress wrong");
 			AddScore(-5);
-            _playerScript.PlayWrongSound();
+
+			if (isServer)
+				RpcSignalWrongAnswer();
+			else
+				CmdSignalWrongAnswer();
 		}
+
+		if (Game.currentTurn >= Game.totalTurns)
+        {
+			SetGameState(GameState.GameOver);
+        }
 	}
 
-	/*[Command]
-	void CmdGotCorrect (int val)
+	[Command]
+	void CmdSignalCorrectAnswer ()
 	{
-		RpcGotCorrect(val);
-		GotCorrect(val);
+		Debug.Log("CmdSignalCorrectAnswer");
+		RpcSignalCorrectAnswer();
 	}
 
 	[ClientRpc]
-	void RpcGotCorrect (int val)
+	void RpcSignalCorrectAnswer ()
 	{
-		GotCorrect(val);
+		Debug.Log("RpcSignalCorrectAnswer");
+		SignalCorrectAnswer();
 	}
 
-	void GotCorrect (int val)
+	void SignalCorrectAnswer ()
 	{
-		Game.currentTurn++;
-		Game.currentTime = 5f;
-		playerNumbers.RemoveAt(0);
-		AddScore(val);
-	}*/
+		Debug.Log("SignalCorrectAnswer");
+		_playerScript.PlayRightSound();
+	}
+
+	[Command]
+	void CmdSignalWrongAnswer ()
+	{
+		Debug.Log("CmdSignalWrongAnswer");
+		SignalWrongAnswer();
+		RpcSignalWrongAnswer();
+	}
+
+	[ClientRpc]
+	void RpcSignalWrongAnswer ()
+	{
+		Debug.Log("RpcSignalWrongAnswer");
+		SignalWrongAnswer();
+	}
+
+	void SignalWrongAnswer ()
+	{
+		Debug.Log("SignalWrongAnswer");
+		_playerScript.PlayWrongSound();
+	}
+
+	[ClientRpc]
+	void RpcSignalRestartRound ()
+	{
+		Debug.Log("RpcSignalRestartRound");
+
+		//HUD.instance.gameoverUI.SetActive(false);
+		SetGameState(GameState.WaitingForNextRound);
+	}
 
 	[Command]
 	void CmdNewPlayerJoined ()
